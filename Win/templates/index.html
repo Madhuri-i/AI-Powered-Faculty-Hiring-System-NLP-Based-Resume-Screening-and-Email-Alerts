@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Faculty Hiring Assistant</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            width: 100%;
+            height: 100%;
+            background-color: #111111;
+            background-image: linear-gradient(32deg, rgba(8, 8, 8, 0.74) 30px, transparent);
+            background-size: 60px 60px;
+            background-position: -5px -5px;
+            box-sizing: border-box;
+        }
+
+        h1 {
+            color: #f7f5f5;
+        }
+
+        #button-container {
+            margin-bottom: 20px;
+        }
+
+        button {
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+            margin-right: 10px;
+            color: #f4f4f4;
+            background-color: black;
+            border: 2px solid white;
+            border-radius: 20px;
+        }
+
+        button:disabled {
+            background-color: #b2beb5;
+            cursor: not-allowed;
+        }
+
+        button:hover {
+            background-color: #1976D2;
+        }
+
+        .box {
+            border: 1px solid #ddd;
+            max-height: 400px;
+            overflow-y: auto;
+            background-color: #f9f9f9;
+            padding: 10px;
+        }
+
+        .message {
+            padding: 5px;
+            margin-bottom: 5px;
+            background-color: #e8f5e9;
+            border-left: 3px solid #4caf50;
+        }
+
+        .error {
+            padding: 5px;
+            margin-bottom: 5px;
+            background-color: #ffebee;
+            border-left: 3px solid #f44336;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+            color: white;
+        }
+
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+
+        th {
+            background-color: #f4f4f4;
+            color: black;
+        }
+        
+    </style>
+</head>
+<body>
+    <h1>Faculty Hiring Assistant</h1>
+
+    <div id="button-container">
+        <button id="download-resumes">Download Resumes</button>
+        <button id="shortlist-resumes" style="display: none;">Shortlist Resumes</button>
+        <button id="send-mails" style="display: none;">Send Emails</button>
+    </div>
+
+    <div class="box" id="output"></div>
+    <div id="table-container"></div>
+
+    <script>
+        const downloadResumesButton = document.getElementById('download-resumes');
+        const shortlistButton = document.getElementById('shortlist-resumes');
+        const sendMailsButton = document.getElementById('send-mails');
+        const output = document.getElementById('output');
+        const tableContainer = document.getElementById('table-container');
+
+        const clearOutput = () => { output.innerHTML = ""; };
+
+        const appendMessage = (message, isError = false) => {
+            const div = document.createElement('div');
+            div.textContent = message;
+            div.className = isError ? 'error' : 'message';
+            output.appendChild(div);
+            output.scrollTop = output.scrollHeight;
+        };
+
+                // Handle 'Download Resumes' button click
+                downloadResumesButton.addEventListener('click', () => {
+            downloadResumesButton.textContent = 'Downloading...';
+            downloadResumesButton.disabled = true;
+            clearOutput();
+
+            let totalAttachments = 0; // Counter for processed attachments
+            let newResumes = 0; // Counter for newly downloaded resumes
+
+            const eventSource = new EventSource('/run-script');
+
+            eventSource.onmessage = (event) => {
+                const message = event.data;
+
+                // Update counters based on the message
+                if (message.includes("already exists") || message.includes("New Resumes Downloaded")) {
+                    totalAttachments++;
+                }
+
+                if (message.includes("New Resumes Downloaded")) {
+                    newResumes = parseInt(message.match(/\d+/)[0]); // Extract number of new resumes
+                }
+
+                // Filter out specific messages to avoid appending
+                if (
+                    !message.includes("Total attachments processed") &&
+                    !message.includes("New resumes downloaded")
+                ) {
+                    appendMessage(message);
+                }
+            };
+
+            eventSource.addEventListener('complete', () => {
+                // On completion, do not append these lines
+                downloadResumesButton.textContent = 'Completed';
+                eventSource.close();
+                shortlistButton.style.display = 'inline-block';
+            });
+
+            eventSource.onerror = () => {
+                appendMessage("An unexpected error occurred. Check server logs for details.", true);
+                eventSource.close();
+                downloadResumesButton.textContent = 'Download Resumes';
+                downloadResumesButton.disabled = false;
+            };
+        });
+
+
+        // Handle 'Shortlist Resumes' button click
+        shortlistButton.addEventListener('click', () => {
+            shortlistButton.textContent = 'Shortlisting...';
+            shortlistButton.disabled = true;
+            clearOutput();
+            tableContainer.innerHTML = "";
+
+            const eventSource = new EventSource('/shortlist-resumes');
+
+            eventSource.onmessage = (event) => {
+                const data = JSON.parse(event.data);
+
+                if (data.error) {
+                    appendMessage(data.error, true);
+                    return;
+                }
+
+                if (data.resumes) {
+                    const table = document.createElement('table');
+                    const headers = ['File', 'Name', 'Email', 'Position', 'Skill %', 'Exp Match', 'Deg Match'];
+                    const thead = document.createElement('thead');
+                    const headerRow = document.createElement('tr');
+                    headers.forEach(header => {
+                        const th = document.createElement('th');
+                        th.textContent = header;
+                        headerRow.appendChild(th);
+                    });
+                    thead.appendChild(headerRow);
+                    table.appendChild(thead);
+
+                    const tbody = document.createElement('tbody');
+                    data.resumes.forEach(resume => {
+                        const row = document.createElement('tr');
+                        Object.values(resume).forEach(value => {
+                            const td = document.createElement('td');
+                            td.textContent = value;
+                            row.appendChild(td);
+                        });
+                        tbody.appendChild(row);
+                    });
+                    table.appendChild(tbody);
+                    tableContainer.appendChild(table);
+
+                    appendMessage(`CSV file created: ${data.csv_file}`);
+                    appendMessage(`Total shortlisted applicants: ${data.total}`);
+                }
+            };
+
+            eventSource.addEventListener('complete', () => {
+                eventSource.close();
+                shortlistButton.textContent = 'Completed';
+                sendMailsButton.style.display = 'inline-block';
+            });
+
+            eventSource.onerror = () => {
+                appendMessage("An error occurred while shortlisting resumes.", true);
+                eventSource.close();
+                shortlistButton.textContent = 'Shortlist Resumes';
+                shortlistButton.disabled = false;
+            };
+        });
+
+        // Handle 'Send Emails' button click
+        sendMailsButton.addEventListener('click', () => {
+            sendMailsButton.textContent = 'Sending Emails...';
+            sendMailsButton.disabled = true;
+            clearOutput();
+
+            const eventSource = new EventSource('/send-mails');
+
+            eventSource.onmessage = (event) => {
+                appendMessage(event.data);
+            };
+
+            eventSource.addEventListener('complete', () => {
+                eventSource.close();
+                sendMailsButton.textContent = 'Send Emails';
+                appendMessage("All emails sent successfully!");
+            });
+
+            eventSource.onerror = () => {
+                appendMessage("An error occurred while sending emails.", true);
+                sendMailsButton.disabled = false;
+                sendMailsButton.textContent = 'Send Emails';
+            };
+        });
+    </script>
+</body>
+</html>
