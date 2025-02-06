@@ -17,8 +17,8 @@ app = Flask(__name__)
 # Email credentials
 SMTP_SERVER = "smtp.gmail.com"
 SMTP_PORT = 587
-SENDER_EMAIL = "tokallaakshaya2004@gmail.com"
-SENDER_PASSWORD = "jmoy dolg alqg rqbk"
+SENDER_EMAIL = "example@gmail.com"
+SENDER_PASSWORD = #password
 CONTACT_EMAIL = "hr@brecw.edu.in"
 CONTACT_PHONE = "123-456-7890"
 COLLEGE_NAME = "Bhoj Reddy Engineering College for Women"
